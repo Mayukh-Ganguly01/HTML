@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Recorder & Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .video-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        video, canvas {
+            width: 100%;
+            height: 300px;
+            border-radius: 10px;
+            background: #000;
+            object-fit: cover;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #ff6b6b;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #ee5a24;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .secondary {
+            background: #4834d4;
+        }
+
+        .secondary:hover {
+            background: #3742fa;
+        }
+
+        .success {
+            background: #00d2d3;
+        }
+
+        .success:hover {
+            background: #0abde3;
+        }
+
+        input {
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            margin: 0 5px;
+            width: 80px;
+        }
+
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+            min-height: 20px;
+        }
+
+        .error { color: #ff6b6b; }
+        .success-text { color: #00d2d3; }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d2d3, #0abde3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .clips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .clip-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .clip-preview {
+            width: 100%;
+            height: 120px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .clip-info {
+            font-size: 12px;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+
+        .clip-controls button {
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+
+        .recording-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff4757;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            display: none;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .mirrored {
+            transform: scaleX(-1);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Video Recorder & Editor</h1>
+            <p>Record, edit, and save video clips</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Camera Section -->
+            <div class="section">
+                <h3>📹 Camera & Recording</h3>
+                <div class="video-container">
+                    <video id="cameraPreview" autoplay muted playsinline></video>
+                    <canvas id="videoCanvas" style="display: none;"></canvas>
+                    <div id="recordingIndicator" class="recording-indicator">● REC</div>
+                </div>
+                
+                <div class="controls">
+                    <button id="startCamera">Start Camera</button>
+                    <button id="toggleMirror" class="secondary" disabled>Toggle Mirror</button>
+                    <button id="removeBackground" class="secondary" disabled>Play/Pause</button>
+                </div>
+
+                <div class="controls">
+                    <button id="startRecording" disabled>Start Recording</button>
+                    <button id="stopRecording" disabled>Stop Recording</button>
+                </div>
+
+                <div id="cameraStatus" class="status"></div>
+            </div>
+
+            <!-- Editor Section -->
+            <div class="section">
+                <h3>✂️ Video Editor</h3>
+                <video id="recordedVideo" controls style="display: none;"></video>
+                
+                <div style="margin: 15px 0;">
+                    <label>Start: </label><input type="number" id="startTime" value="0" step="0.1" min="0">
+                    <label>End: </label><input type="number" id="endTime" value="5" step="0.1" min="0">
+                </div>
+
+                <div class="controls">
+                    <button id="previewClip" class="secondary" disabled>Preview Clip</button>
+                    <button id="createClip" class="success" disabled>Create Clip</button>
+                </div>
+
+                <div class="progress-bar">
+                    <div id="clipProgress" class="progress-fill"></div>
+                </div>
+
+                <div id="editorStatus" class="status"></div>
+            </div>
+        </div>
+
+        <!-- Clips Section -->
+        <div class="section">
+            <h3>📁 Video Clips</h3>
+            <div class="controls">
+                <button id="clearClips" class="secondary">Clear All</button>
+                <button id="downloadAll" class="success">Download All</button>
+            </div>
+            <div id="clipsContainer" class="clips-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let stream = null;
+        let isRecording = false;
+        let isMirrored = false;
+        let backgroundRemoved = false;
+        let clips = [];
+        let clipCounter = 0;
+
+        // DOM elements
+        const cameraPreview = document.getElementById('cameraPreview');
+        const videoCanvas = document.getElementById('videoCanvas');
+        const recordedVideo = document.getElementById('recordedVideo');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const editorStatus = document.getElementById('editorStatus');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const clipsContainer = document.getElementById('clipsContainer');
+
+        // Buttons
+        const startCameraBtn = document.getElementById('startCamera');
+        const toggleMirrorBtn = document.getElementById('toggleMirror');
+        const removeBackgroundBtn = document.getElementById('removeBackground');
+        const startRecordingBtn = document.getElementById('startRecording');
+        const stopRecordingBtn = document.getElementById('stopRecording');
+        const previewClipBtn = document.getElementById('previewClip');
+        const createClipBtn = document.getElementById('createClip');
+        const clearClipsBtn = document.getElementById('clearClips');
+        const downloadAllBtn = document.getElementById('downloadAll');
+
+        // Utility functions
+        function updateStatus(element, message, type = '') {
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        function enableButtons(buttons) {
+            buttons.forEach(btn => btn.disabled = false);
+        }
+
+        function disableButtons(buttons) {
+            buttons.forEach(btn => btn.disabled = true);
+        }
+
+        // Camera functions
+        async function startCamera() {
+            try {
+                updateStatus(cameraStatus, 'Starting camera...', 'success-text');
+                
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720 },
+                    audio: true
+                });
+
+                cameraPreview.srcObject = stream;
+                
+                // Setup canvas
+                videoCanvas.width = 1280;
+                videoCanvas.height = 720;
+                
+                updateStatus(cameraStatus, 'Camera ready!', 'success-text');
+                
+                // Enable controls
+                enableButtons([toggleMirrorBtn, removeBackgroundBtn, startRecordingBtn]);
+                startCameraBtn.textContent = 'Camera Active';
+                startCameraBtn.disabled = true;
+                
+            } catch (error) {
+                updateStatus(cameraStatus, 'Camera access denied: ' + error.message, 'error');
+            }
+        }
+
+        function toggleMirror() {
+            isMirrored = !isMirrored;
+            if (isMirrored) {
+                cameraPreview.classList.add('mirrored');
+                toggleMirrorBtn.textContent = 'Mirror: ON';
+            } else {
+                cameraPreview.classList.remove('mirrored');
+                toggleMirrorBtn.textContent = 'Mirror: OFF';
+            }
+            updateStatus(cameraStatus, `Mirror ${isMirrored ? 'enabled' : 'disabled'}`, 'success-text');
+        }
+
+        function toggleBackground() {
+            backgroundRemoved = !backgroundRemoved;
+            if (backgroundRemoved) {
+                removeBackgroundBtn.textContent = 'Resume Camera';
+                // Simple background removal - hide video and show canvas
+                cameraPreview.style.display = 'none';
+                videoCanvas.style.display = 'block';
+                processVideoFrame();
+            } else {
+                removeBackgroundBtn.textContent = 'Pause Camera';
+                cameraPreview.style.display = 'block';
+                videoCanvas.style.display = 'none';
+            }
+            updateStatus(cameraStatus, `Background removal ${backgroundRemoved ? 'enabled' : 'disabled'}`, 'success-text');
+        }
+
+        function processVideoFrame() {
+            if (!backgroundRemoved) return;
+            
+            const ctx = videoCanvas.getContext('2d');
+            
+            // Mirror effect
+            if (isMirrored) {
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.translate(-videoCanvas.width, 0);
+            }
+            
+            ctx.drawImage(cameraPreview, 0, 0, videoCanvas.width, videoCanvas.height);
+            
+            if (isMirrored) {
+                ctx.restore();
+            }
+            
+            // Simple green screen effect
+            const imageData = ctx.getImageData(0, 0, videoCanvas.width, videoCanvas.height);
+            const data = imageData.data;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const red = data[i];
+                const green = data[i + 1];
+                const blue = data[i + 2];
+                
+                if (green > 100 && green > red * 1.4 && green > blue * 1.4) {
+                    data[i + 3] = 0; // Make transparent
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            
+            if (backgroundRemoved) {
+                requestAnimationFrame(processVideoFrame);
+            }
+        }
+
+        // Recording functions
+        async function startRecording() {
+            try {
+                recordedChunks = [];
+                
+                // Get the stream source
+                let recordingStream;
+                if (backgroundRemoved) {
+                    recordingStream = videoCanvas.captureStream(30);
+                    // Add audio track
+                    const audioTrack = stream.getAudioTracks()[0];
+                    if (audioTrack) {
+                        recordingStream.addTrack(audioTrack);
+                    }
+                } else {
+                    recordingStream = stream;
+                }
+
+                // Try MP4 first, fallback to WebM
+                let mimeType = 'video/webm';
+                if (MediaRecorder.isTypeSupported('video/mp4')) {
+                    mimeType = 'video/mp4';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+                    mimeType = 'video/webm;codecs=vp9';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+                    mimeType = 'video/webm;codecs=vp8';
+                }
+
+                mediaRecorder = new MediaRecorder(recordingStream, {
+                    mimeType: mimeType
+                });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = handleRecordingStop;
+
+                mediaRecorder.start(100); // Smaller chunks for better quality
+                isRecording = true;
+                
+                recordingIndicator.style.display = 'block';
+                disableButtons([startRecordingBtn]);
+                enableButtons([stopRecordingBtn]);
+                
+                updateStatus(cameraStatus, 'Recording...', 'success-text');
+                
+            } catch (error) {
+                updateStatus(cameraStatus, 'Recording failed: ' + error.message, 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                recordingIndicator.style.display = 'none';
+                disableButtons([stopRecordingBtn]);
+                enableButtons([startRecordingBtn]);
+                
+                updateStatus(cameraStatus, 'Recording stopped', 'success-text');
+            }
+        }
+
+        function handleRecordingStop() {
+            // Determine file type based on recorded content
+            let fileType = 'video/mp4';
+            let fileExtension = 'mp4';
+            
+            if (recordedChunks.length > 0) {
+                const firstChunk = recordedChunks[0];
+                if (firstChunk.type.includes('webm')) {
+                    fileType = 'video/webm';
+                    fileExtension = 'webm';
+                }
+            }
+            
+            const blob = new Blob(recordedChunks, { type: fileType });
+            const url = URL.createObjectURL(blob);
+            
+            recordedVideo.src = url;
+            recordedVideo.style.display = 'block';
+            
+            // Enhanced metadata loading with retry mechanism
+            const setupVideoMetadata = () => {
+                return new Promise((resolve) => {
+                    const onLoadedMetadata = () => {
+                        document.getElementById('endTime').max = recordedVideo.duration;
+                        document.getElementById('endTime').value = Math.min(5, recordedVideo.duration);
+                        document.getElementById('startTime').max = recordedVideo.duration;
+                        recordedVideo.removeEventListener('loadedmetadata', onLoadedMetadata);
+                        resolve();
+                    };
+                    
+                    if (recordedVideo.readyState >= 1) {
+                        onLoadedMetadata();
+                    } else {
+                        recordedVideo.addEventListener('loadedmetadata', onLoadedMetadata);
+                        recordedVideo.load(); // Force reload if needed
+                    }
+                });
+            };
+            
+            setupVideoMetadata().then(() => {
+                enableButtons([previewClipBtn, createClipBtn]);
+                updateStatus(editorStatus, `Video ready for editing! Format: ${fileExtension.toUpperCase()}`, 'success-text');
+            });
+            
+            // Store original blob for clip creation
+            window.originalVideoBlob = blob;
+            window.originalVideoType = fileType;
+            window.originalVideoExtension = fileExtension;
+        }
+
+        // Enhanced clip functions
+        function previewClip() {
+            const startTime = parseFloat(document.getElementById('startTime').value);
+            const endTime = parseFloat(document.getElementById('endTime').value);
+            
+            if (startTime >= endTime) {
+                updateStatus(editorStatus, 'Start time must be less than end time!', 'error');
+                return;
+            }
+            
+            if (endTime > recordedVideo.duration) {
+                updateStatus(editorStatus, 'End time exceeds video duration!', 'error');
+                return;
+            }
+            
+            updateStatus(editorStatus, 'Preparing preview...', 'success-text');
+            
+            // Enhanced preview with smooth seeking
+            const startPreview = () => {
+                return new Promise((resolve) => {
+                    const onSeeked = () => {
+                        recordedVideo.removeEventListener('seeked', onSeeked);
+                        recordedVideo.play();
+                        updateStatus(editorStatus, `Previewing clip (${(endTime - startTime).toFixed(1)}s)...`, 'success-text');
+                        resolve();
+                    };
+                    
+                    recordedVideo.addEventListener('seeked', onSeeked);
+                    recordedVideo.currentTime = startTime;
+                });
+            };
+            
+            startPreview().then(() => {
+                const stopPreview = () => {
+                    if (recordedVideo.currentTime >= endTime) {
+                        recordedVideo.pause();
+                        recordedVideo.removeEventListener('timeupdate', stopPreview);
+                        updateStatus(editorStatus, 'Preview complete!', 'success-text');
+                    }
+                };
+                
+                recordedVideo.addEventListener('timeupdate', stopPreview);
+            });
+        }
+
+        async function createClip() {
+            const startTime = parseFloat(document.getElementById('startTime').value);
+            const endTime = parseFloat(document.getElementById('endTime').value);
+            
+            if (startTime >= endTime) {
+                updateStatus(editorStatus, 'Start time must be less than end time!', 'error');
+                return;
+            }
+            
+            if (endTime > recordedVideo.duration) {
+                updateStatus(editorStatus, 'End time exceeds video duration!', 'error');
+                return;
+            }
+            
+            // Show progress and disable button
+            const progressBar = document.getElementById('clipProgress');
+            createClipBtn.disabled = true;
+            progressBar.style.width = '0%';
+            updateStatus(editorStatus, 'Initializing clip creation...', 'success-text');
+            
+            try {
+                // Simulate progress updates
+                const updateProgress = (percent) => {
+                    progressBar.style.width = percent + '%';
+                };
+                
+                updateProgress(10);
+                updateStatus(editorStatus, 'Processing video...', 'success-text');
+                
+                const clipBlob = await extractClipImproved(startTime, endTime, updateProgress);
+                
+                updateProgress(90);
+                updateStatus(editorStatus, 'Finalizing clip...', 'success-text');
+                
+                const clipId = 'clip_' + (++clipCounter);
+                const duration = endTime - startTime;
+                
+                clips.push({
+                    id: clipId,
+                    blob: clipBlob,
+                    startTime: startTime,
+                    endTime: endTime,
+                    duration: duration,
+                    format: window.originalVideoExtension || 'mp4'
+                });
+                
+                addClipToGrid(clipId, clipBlob, startTime, endTime, duration);
+                
+                updateProgress(100);
+                updateStatus(editorStatus, `✅ Clip created! Duration: ${duration.toFixed(1)}s`, 'success-text');
+                
+                // Reset progress after delay
+                setTimeout(() => {
+                    updateProgress(0);
+                }, 2000);
+                
+            } catch (error) {
+                updateStatus(editorStatus, '❌ Error creating clip: ' + error.message, 'error');
+                document.getElementById('clipProgress').style.width = '0%';
+            } finally {
+                createClipBtn.disabled = false;
+            }
+        }
+
+        async function extractClipImproved(startTime, endTime, progressCallback) {
+            return new Promise((resolve, reject) => {
+                const video = document.createElement('video');
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const chunks = [];
+                
+                video.crossOrigin = 'anonymous';
+                video.muted = true;
+                video.preload = 'metadata';
+                
+                // Use original blob if available
+                if (window.originalVideoBlob) {
+                    video.src = URL.createObjectURL(window.originalVideoBlob);
+                } else {
+                    video.src = recordedVideo.src;
+                }
+                
+                let recorder;
+                let isRecording = false;
+                let startRecordingTime;
+                const duration = endTime - startTime;
+                
+                const cleanup = () => {
+                    if (recorder && recorder.state !== 'inactive') {
+                        recorder.stop();
+                    }
+                    if (video.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(video.src);
+                    }
+                };
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    
+                    const stream = canvas.captureStream(30);
+                    
+                    // Try MP4-compatible codec first
+                    let mimeType = 'video/webm;codecs=vp9';
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
+                        mimeType = 'video/webm;codecs=h264';
+                    }
+                    
+                    recorder = new MediaRecorder(stream, { 
+                        mimeType: mimeType,
+                        videoBitsPerSecond: 2500000 // Higher quality
+                    });
+                    
+                    recorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) chunks.push(e.data);
+                    };
+                    
+                    recorder.onstop = () => {
+                        const clipBlob = new Blob(chunks, { 
+                            type: window.originalVideoType || 'video/mp4' 
+                        });
+                        resolve(clipBlob);
+                    };
+                    
+                    // Progress callback for seeking
+                    progressCallback(30);
+                    
+                    // Seek to start time with timeout
+                    const seekTimeout = setTimeout(() => {
+                        reject(new Error('Video seek timeout'));
+                    }, 5000);
+                    
+                    video.onseeked = () => {
+                        clearTimeout(seekTimeout);
+                        
+                        if (!isRecording) {
+                            isRecording = true;
+                            startRecordingTime = Date.now();
+                            
+                            progressCallback(50);
+                            
+                            recorder.start(100);
+                            video.play();
+                            
+                            const captureFrame = () => {
+                                if (video.currentTime >= endTime) {
+                                    cleanup();
+                                    return;
+                                }
+                                
+                                if (video.readyState >= 2) {
+                                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                    
+                                    // Update progress based on time elapsed
+                                    const elapsed = video.currentTime - startTime;
+                                    const progress = Math.min((elapsed / duration) * 30, 30);
+                                    progressCallback(50 + progress);
+                                }
+                                
+                                if (isRecording && video.currentTime < endTime) {
+                                    requestAnimationFrame(captureFrame);
+                                }
+                            };
+                            
+                            requestAnimationFrame(captureFrame);
+                            
+                            // Safety timeout with extra buffer
+                            setTimeout(() => {
+                                if (isRecording) {
+                                    cleanup();
+                                }
+                            }, duration * 1000 + 3000);
+                        }
+                    };
+                    
+                    video.currentTime = startTime;
+                };
+                
+                video.onended = () => cleanup();
+                video.onerror = (e) => {
+                    cleanup();
+                    reject(new Error('Video loading failed: ' + e.message));
+                };
+                
+                // Overall timeout
+                setTimeout(() => {
+                    if (chunks.length === 0) {
+                        cleanup();
+                        reject(new Error('Clip extraction timeout - please try again'));
+                    }
+                }, 60000);
+            });
+        }
+
+        function addClipToGrid(id, blob, startTime, endTime, duration) {
+            const clipDiv = document.createElement('div');
+            clipDiv.className = 'clip-item';
+            const format = clips.find(c => c.id === id)?.format || 'mp4';
+            clipDiv.innerHTML = `
+                <video class="clip-preview" src="${URL.createObjectURL(blob)}" muted controls></video>
+                <div class="clip-info">
+                    Duration: ${duration.toFixed(1)}s<br>
+                    Range: ${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s<br>
+                    Format: ${format.toUpperCase()}
+                </div>
+                <div class="clip-controls">
+                    <button onclick="playClip('${id}')" class="secondary">Play</button>
+                    <button onclick="downloadClip('${id}')" class="success">Download</button>
+                    <button onclick="deleteClip('${id}')">Delete</button>
+                </div>
+            `;
+            clipsContainer.appendChild(clipDiv);
+        }
+
+        function playClip(id) {
+            const clip = clips.find(c => c.id === id);
+            if (clip) {
+                recordedVideo.src = URL.createObjectURL(clip.blob);
+                recordedVideo.currentTime = 0;
+                recordedVideo.play();
+                updateStatus(editorStatus, `Playing clip ${id}`, 'success-text');
+            }
+        }
+
+        function downloadClip(id) {
+            const clip = clips.find(c => c.id === id);
+            if (clip) {
+                const url = URL.createObjectURL(clip.blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // Use proper file extension based on format
+                const extension = clip.format || 'mp4';
+                a.download = `video_clip_${id}.${extension}`;
+                
+                // Ensure the link works
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+                updateStatus(editorStatus, `Downloaded ${a.download}`, 'success-text');
+            }
+        }
+
+        function deleteClip(id) {
+            clips = clips.filter(c => c.id !== id);
+            const clipElements = clipsContainer.children;
+            for (let i = 0; i < clipElements.length; i++) {
+                if (clipElements[i].innerHTML.includes(id)) {
+                    clipsContainer.removeChild(clipElements[i]);
+                    break;
+                }
+            }
+            updateStatus(editorStatus, `Deleted clip ${id}`, 'success-text');
+        }
+
+        function clearAllClips() {
+            clips = [];
+            clipsContainer.innerHTML = '';
+            updateStatus(editorStatus, 'All clips cleared', 'success-text');
+        }
+
+        function downloadAllClips() {
+            if (clips.length === 0) {
+                updateStatus(editorStatus, 'No clips to download', 'error');
+                return;
+            }
+            
+            clips.forEach((clip, index) => {
+                setTimeout(() => {
+                    downloadClip(clip.id);
+                }, index * 500); // Stagger downloads to prevent browser blocking
+            });
+            
+            updateStatus(editorStatus, `Downloading ${clips.length} clips...`, 'success-text');
+        }
+
+        // Event listeners
+        startCameraBtn.addEventListener('click', startCamera);
+        toggleMirrorBtn.addEventListener('click', toggleMirror);
+        removeBackgroundBtn.addEventListener('click', toggleBackground);
+        startRecordingBtn.addEventListener('click', startRecording);
+        stopRecordingBtn.addEventListener('click', stopRecording);
+        previewClipBtn.addEventListener('click', previewClip);
+        createClipBtn.addEventListener('click', createClip);
+        clearClipsBtn.addEventListener('click', clearAllClips);
+        downloadAllBtn.addEventListener('click', downloadAllClips);
+
+        // Make functions global for onclick handlers
+        window.playClip = playClip;
+        window.downloadClip = downloadClip;
+        window.deleteClip = deleteClip;
+    </script>
+</body>
+</html>
